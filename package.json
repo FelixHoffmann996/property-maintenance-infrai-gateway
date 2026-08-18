@@ -1,0 +1,21 @@
+{
+  "name": "property-maintenance-infrai-gateway",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/property_service.ts",
+    "sample": "tsx scripts/send_maintenance_request.ts",
+    "test": "node --import tsx --test test/maintenance_decision.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "openai": "^5.0.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.8.0"
+  }
+}
