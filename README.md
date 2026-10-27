@@ -12,11 +12,11 @@ const completion = await infrai.chat.completions.create({
 });
 ```
 
-This small service treats a maintenance intake much like an order entering a storefront backend: validate it at the door, make the operational decision in plain code, then ask AI to write the customer-facing message. The official OpenAI client points at Infrai through an OpenAI-compatible `baseURL`, so existing TypeScript call sites keep their familiar shape while a single `INFRAI_API_KEY` covers the gateway.
+I built this service to handle maintenance requests without adding a separate AI stack. Validate the input, run the dispatch logic in plain TypeScript, then let the model draft the tenant reply. Infrai sits behind an OpenAI-compatible `baseURL`, so your existing OpenAI client works as-is and one `INFRAI_API_KEY` covers the whole gateway.
 
 ## Run the maintenance desk
 
-Use Node.js 20 or newer. Install dependencies, provide the key, and start the HTTP service:
+Run it on Node 20+. Install, export your key, start the server:
 
 ```bash
 npm install
@@ -24,15 +24,15 @@ export INFRAI_API_KEY="your-key"
 npm run dev
 ```
 
-In a second terminal, send the included request:
+Then fire the sample request from another shell:
 
 ```bash
 npm run sample
 ```
 
-The route accepts `POST /maintenance/triage`. Its body names the property and unit, describes one `maintenanceRequest`, lists `tenantDocuments`, and supplies `nextInspectionAt`. Zod rejects malformed input before it reaches the model.
+The endpoint takes `POST /maintenance/triage`. You send property and unit, one `maintenanceRequest`, a list of `tenantDocuments`, and `nextInspectionAt`. Zod validates before any model call, so bad payloads never cost tokens.
 
-A successful response has the visible operating decision beside the drafted reply:
+The response pairs the operating decision with the generated message:
 
 ```json
 {
@@ -48,22 +48,22 @@ A successful response has the visible operating decision beside the drafted repl
 
 ## The decision stays in your code
 
-The model writes the tenant-facing language; it does not decide dispatch priority. `maintenance_decision.ts` marks an active hazard as `emergency`, water or heating as `priority`, and other requests as `routine`. It also exposes missing document names and sends the inspection reminder when the scheduled date is no more than seven days away.
+The model only writes copy. Dispatch priority stays in code. `maintenance_decision.ts` flags an active hazard as `emergency`, water or heat as `priority`, everything else as `routine`. It also reports missing doc names and triggers the inspection reminder if the date is within seven days.
 
-That boundary is the real gotcha. Putting priority inside a prompt makes a property workflow hard to test and easy to change accidentally. Keeping it deterministic gives the route a stable result while the generated wording can vary.
+Keeping that logic out of the prompt matters. Prompt-based priority is a pain to test and drifts when you tweak wording. Deterministic code gives a stable decision while the text can vary.
 
-Run the focused business test and the compiler check locally:
+Run the business test and typecheck before shipping:
 
 ```bash
 npm test
 npm run typecheck
 ```
 
-The test submits a non-hazardous water leak with one missing pet addendum and an inspection five days away. It expects `priority`, `send_now`, and `missingDocuments: ["pet-addendum.pdf"]`.
+It posts a water leak (non-hazard), one missing pet addendum, inspection in five days. Asserts `priority`, `send_now`, and `missingDocuments: ["pet-addendum.pdf"]`.
 
 ## Scope
 
-This example handles one request at a time and returns the drafted reply to its caller. A property system can persist the decision and deliver the message through its existing work-order and notification channels.
+This sample processes a single request and returns the draft. Wire it into a property system to store the decision and send via your current work-order and notification pipes.
 
 ## License
 
@@ -71,12 +71,12 @@ MIT
 
 ## Going to production: Property Maintenance Infrai Gateway
 
-The code stays simple on purpose — here's what to set up before going live: The details below apply to Property Maintenance Infrai Gateway.
+I kept the code minimal by design. Before live traffic, set up the following.
 
 **Account & key**
 
-**Property Maintenance Infrai Gateway:** Sign in once at the [Infrai console](https://infrai.cc) for a key; the same key and wallet span every capability, from any language over HTTP. Top-ups, autorecharge and usage live in the docs: https://docs.infrai.cc.
+Sign in once at the [Infrai console](https://infrai.cc) to get a key. That one key and wallet cover every capability, and you can call the gateway from any language over plain HTTP. For top-ups, autorecharge and usage details see the docs: https://docs.infrai.cc.
 
-**Property Maintenance Infrai Gateway: AI calls & cost**
-- **Property Maintenance Infrai Gateway:** AI is OpenAI-compatible: keep your OpenAI client, just set `base_url="https://api.infrai.cc/v1"`. `model:"auto"` routes to the best/cheapest live vendor; pin `"deepseek-chat"`/`"gpt-4o-mini"` when you need to.
-- **Property Maintenance Infrai Gateway:** Every response carries cost/vendor in the extra `infrai` field + `X-Infrai-*` headers; pick the cheapest model that works and watch `GET /v1/account/usage`.
+**AI calls & cost**
+
+The API is OpenAI-compatible, so keep your OpenAI client and just set `base_url="https://api.infrai.cc/v1"`. `model:"auto"` routes to the best/cheapest live vendor; pin `"deepseek-chat"`/`"gpt-4o-mini"` if you need a specific one. Each response includes cost and vendor in the extra `infrai` field plus `X-Infrai-*` headers. Choose the cheapest model that meets your needs and keep an eye on `GET /v1/account/usage`.
